@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full bg-slate-900 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>移动端相册标签管家</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .active-scale:active { transform: scale(0.95); }
+    .pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 16px); }
+    .pt-safe { padding-top: max(env(safe-area-inset-top), 12px); }
+    
+    /* Toast Animation */
+    @keyframes toastIn {
+      from { transform: translate(-50%, 20px); opacity: 0; }
+      to { transform: translate(-50%, 0); opacity: 1; }
+    }
+    .animate-toast {
+      animation: toastIn 0.25s ease-out forwards;
+    }
+    .swipe-container {
+      touch-action: none;
+    }
+    #detail-image {
+      transition: transform 0.1s ease-out;
+      transform-origin: center center;
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col antialiased selection:bg-indigo-500 selection:text-white select-none bg-slate-900 text-slate-100 overflow-x-hidden">
+
+  <!-- Toast Notification Container -->
+  <div id="toast" class="hidden fixed bottom-20 left-1/2 -translate-x-1/2 z-[70] bg-slate-800 text-slate-100 border border-slate-700 px-4 py-2.5 rounded-2xl shadow-2xl text-xs font-semibold flex items-center gap-2 pointer-events-none animate-toast">
+    <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+    <span id="toast-msg">操作成功</span>
+  </div>
+
+  <!-- Header -->
+  <header class="sticky top-0 z-20 bg-slate-900/95 backdrop-blur-md border-b border-slate-800/80 pt-safe px-4 pb-3">
+    <div class="flex items-center justify-between gap-2 mb-2.5">
+      <div class="flex items-center gap-2">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+        </div>
+        <div>
+          <h1 class="text-base font-bold leading-tight">相册标签管家</h1>
+          <p id="stats-counter" class="text-[11px] text-slate-400">正在加载...</p>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center gap-1.5">
+        <button id="btn-toggle-view" class="px-2.5 py-1.5 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-indigo-400 border border-slate-700 flex items-center gap-1 transition active-scale">
+          <svg id="view-icon-cal" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+          <span id="view-toggle-text">月视图</span>
+        </button>
+
+        <label for="file-input" class="cursor-pointer px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1 shadow-md active-scale">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+          导入
+        </label>
+        <input type="file" id="file-input" multiple accept="image/*" class="hidden">
+
+        <button id="btn-toggle-select" class="px-2.5 py-1.5 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition active-scale">
+          多选
+        </button>
+      </div>
+    </div>
+
+    <!-- Search Input -->
+    <div class="relative">
+      <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+      <input type="text" id="search-input" placeholder="输入名称、日期或标签关键字搜索..." 
+        class="w-full pl-9 pr-8 py-2 bg-slate-800/90 rounded-xl text-xs text-slate-100 placeholder-slate-500 border border-slate-700/80 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition">
+      <button id="btn-clear-search" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 text-xs p-1">
+        ✕
+      </button>
+    </div>
+
+    <!-- Multi-select Filter Chips Row -->
+    <div class="mt-2.5">
+      <div class="flex items-center justify-between text-[11px] text-slate-400 mb-1.5 px-0.5">
+        <span class="flex items-center gap-1">
+          <svg class="w-3 h-3 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
+          标签筛选 (AND组合):
+        </span>
+        <button id="btn-reset-filters" class="text-indigo-400 hover:underline hidden font-medium">清除已选</button>
+      </div>
+      <div id="filter-tags-container" class="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5 items-center">
+        <!-- Tag Filter Chips dynamically rendered here -->
+      </div>
+    </div>
+  </header>
+
+  <!-- Main View Slot -->
+  <main class="flex-1 overflow-y-auto px-3 py-3 relative">
+    
+    <!-- Calendar View Container -->
+    <div id="calendar-view" class="hidden mb-4 bg-slate-800/60 border border-slate-700/60 rounded-2xl p-3 backdrop-blur-sm">
+      <div class="flex items-center justify-between mb-3 px-1">
+        <button id="cal-prev-month" class="p-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs active-scale">
+          ◀ 上个月
+        </button>
+        <span id="cal-month-title" class="text-sm font-bold text-indigo-300">2026年 10月</span>
+        <button id="cal-next-month" class="p-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs active-scale">
+          下个月 ▶
+        </button>
+      </div>
+
+      <!-- Calendar Header -->
+      <div class="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-slate-400 mb-1">
+        <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+      </div>
+      <!-- Days Grid -->
+      <div id="calendar-days-grid" class="grid grid-cols-7 gap-1">
+        <!-- Days injected dynamically -->
+      </div>
+      <div id="cal-filter-hint" class="hidden mt-2 pt-2 border-t border-slate-700/60 flex items-center justify-between text-xs text-indigo-300">
+        <span id="cal-selected-date-text">已选择日期: -</span>
+        <button id="btn-clear-date-filter" class="text-xs text-slate-400 hover:text-white underline">查看全部日期</button>
+      </div>
+    </div>
+
+    <!-- Active Filter Banner -->
+    <div id="filter-summary" class="hidden mb-3 p-2.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-xs flex items-center justify-between">
+      <div class="flex items-center gap-1.5 overflow-hidden">
+        <span class="text-indigo-300 font-medium shrink-0">当前筛选范围:</span>
+        <div id="active-tags-list" class="flex gap-1 overflow-x-auto no-scrollbar"></div>
+      </div>
+      <span id="filtered-count" class="text-slate-400 shrink-0 ml-2 font-mono text-[11px]">0 张</span>
+    </div>
+
+    <!-- Image Grid Container -->
+    <div id="image-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 pb-24">
+      <!-- Photos injected dynamically -->
+    </div>
+
+    <!-- Empty State View -->
+    <div id="empty-state" class="hidden flex-col items-center justify-center py-20 text-center">
+      <div class="w-16 h-16 rounded-3xl bg-slate-800 flex items-center justify-center text-slate-500 mb-3">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+      </div>
+      <p class="text-slate-300 font-semibold text-sm">没有匹配的照片</p>
+      <p class="text-slate-500 text-xs mt-1 max-w-[220px]">请尝试重置筛选条件，或导入新照片</p>
+    </div>
+  </main>
+
+  <!-- Batch Action Bar -->
+  <div id="batch-bar" class="hidden fixed bottom-0 left-0 right-0 z-30 bg-slate-800/95 backdrop-blur-md border-t border-slate-700/80 px-4 py-3 shadow-2xl flex items-center justify-between pb-safe">
+    <div class="flex items-center gap-2">
+      <span id="batch-count-badge" class="px-2.5 py-0.5 rounded-full bg-indigo-600 text-white font-bold text-xs">0</span>
+      <span class="text-xs text-slate-300 font-medium">选中项</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="btn-batch-tag" class="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1 active-scale shadow-md">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+        打标签 / 日期
+      </button>
+      <button id="btn-batch-delete" class="p-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 text-xs active-scale" title="删除选中">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Tag Management Modal -->
+  <div id="modal-manage-tags" class="hidden fixed inset-0 z-[70] flex items-center justify-center p-4">
+    <div id="modal-manage-overlay" class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+    <div class="relative w-full max-w-md bg-slate-800 border border-slate-700 rounded-3xl p-5 shadow-2xl z-10 flex flex-col max-h-[80vh]">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-700">
+        <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2">⚙️ 标签集中管理面板</h3>
+        <button id="btn-close-manage-tags" class="text-slate-400 hover:text-white p-1">✕</button>
+      </div>
+
+      <form id="form-manage-add-tag" class="mt-3.5 flex gap-2">
+        <input type="text" id="manage-new-tag-input" placeholder="+ 创建新标签..." required maxlength="12" 
+          class="flex-1 bg-slate-900 rounded-xl px-3 py-2 text-xs text-slate-100 border border-slate-700 focus:outline-none focus:border-indigo-500">
+        <button type="submit" class="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs shrink-0 active-scale">添加</button>
+      </form>
+
+      <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mt-4 mb-2">已有标签列表</div>
+      <div id="manage-tags-list" class="flex-1 overflow-y-auto space-y-2 pr-1 no-scrollbar min-h-[150px]"></div>
+
+      <div class="mt-4 pt-3 border-t border-slate-700/80">
+        <button id="btn-done-manage-tags" class="w-full py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold text-xs text-center active-scale">完成管理</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Sheet Drawer for Tag/Date Assignment (z-[60] 高于大图模式 z-50，解决遮挡问题) -->
+  <div id="drawer-tag-assign" class="hidden fixed inset-0 z-[60] flex flex-col justify-end">
+    <div id="drawer-tag-overlay" class="absolute inset-0 bg-black/75 backdrop-blur-sm transition-opacity"></div>
+    
+    <div class="relative w-full bg-slate-800 border-t border-slate-700 rounded-t-3xl p-5 shadow-2xl max-h-[85vh] flex flex-col pb-safe z-10">
+      <div class="w-10 h-1 bg-slate-600 rounded-full mx-auto mb-3 shrink-0"></div>
+
+      <div class="flex items-center justify-between pb-3 border-b border-slate-700/80">
+        <div>
+          <h2 class="text-base font-bold text-slate-100 flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+            编辑照片信息
+          </h2>
+          <p id="drawer-desc" class="text-xs text-slate-400 mt-0.5">点击标签快速选择绑定状态</p>
+        </div>
+        <button id="btn-close-drawer" class="text-slate-400 hover:text-slate-100 p-2 rounded-full bg-slate-700/60">✕</button>
+      </div>
+
+      <div class="mt-3.5 p-3 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-between">
+        <label class="text-xs text-slate-300 font-semibold flex items-center gap-1.5">
+          <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+          照片自定义日期:
+        </label>
+        <input type="date" id="drawer-date-input" class="bg-slate-800 text-xs text-indigo-200 border border-slate-700 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500">
+      </div>
+
+      <form id="form-quick-tag" class="mt-3 flex gap-2">
+        <input type="text" id="quick-tag-input" placeholder="+ 创建新标签名称..." required maxlength="12" 
+          class="flex-1 bg-slate-900 rounded-xl px-3 py-2 text-xs text-slate-100 border border-slate-700 focus:outline-none focus:border-indigo-500">
+        <button type="submit" class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs shrink-0 active-scale">新建绑定</button>
+      </form>
+
+      <div class="mt-4 flex-1 overflow-y-auto no-scrollbar space-y-4 max-h-[35vh]">
+        <div>
+          <div class="text-[11px] font-semibold text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+            已关联标签
+          </div>
+          <div id="attached-tags-box" class="flex flex-wrap gap-2 min-h-[32px]"></div>
+        </div>
+
+        <div>
+          <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+            可选其他标签
+          </div>
+          <div id="available-tags-box" class="flex flex-wrap gap-2 min-h-[32px]"></div>
+        </div>
+      </div>
+
+      <div class="mt-4 pt-3 border-t border-slate-700/80">
+        <button id="btn-save-drawer-date" class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs text-center active-scale shadow-lg">保存修改</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fullscreen Photo Detail Viewer (z-50 支持缩放手势) -->
+  <div id="modal-photo-viewer" class="hidden fixed inset-0 z-50 bg-black flex flex-col select-none overflow-hidden">
+    <!-- Top Bar -->
+    <div class="flex items-center justify-between p-4 bg-gradient-to-b from-black/90 via-black/40 to-transparent z-20 shrink-0">
+      <div class="flex flex-col">
+        <span id="detail-title" class="text-xs text-slate-200 font-medium truncate max-w-[180px]">照片预览</span>
+        <span id="detail-date-badge" class="text-[10px] text-indigo-400 font-mono">日期: -</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btn-detail-edit" class="px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-semibold flex items-center gap-1 active-scale shadow-md">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+          编辑
+        </button>
+        <button id="btn-detail-delete" class="p-2 rounded-xl bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 text-xs active-scale" title="删除图片">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+        </button>
+        <button id="btn-close-detail" class="text-slate-400 hover:text-white p-2">✕</button>
+      </div>
+    </div>
+
+    <!-- Image Display Container (Full Window Stage + Pinch Zoom Area) -->
+    <div id="swipe-stage" class="swipe-container flex-1 relative flex items-center justify-center overflow-hidden w-full h-full">
+      <button id="btn-prev-photo" class="absolute left-2 z-20 p-2.5 rounded-full bg-slate-900/60 text-white backdrop-blur-md border border-slate-700/60 active-scale hover:bg-slate-800">❮</button>
+
+      <!-- Zoomable Image Element -->
+      <img id="detail-image" src="" alt="Full preview" class="max-h-full max-w-full object-contain cursor-grab active:cursor-grabbing">
+
+      <button id="btn-next-photo" class="absolute right-2 z-20 p-2.5 rounded-full bg-slate-900/60 text-white backdrop-blur-md border border-slate-700/60 active-scale hover:bg-slate-800">❯</button>
+    </div>
+
+    <!-- Bottom Tags Overlay Bar -->
+    <div class="p-4 bg-gradient-to-t from-black/95 via-black/50 to-transparent pb-safe shrink-0 z-20">
+      <div class="flex items-center justify-between text-[11px] text-slate-400 mb-1.5 font-medium">
+        <span>已绑定标签 (双击可放大/缩小图片):</span>
+        <span id="detail-index-counter" class="font-mono text-indigo-300">1 / 1</span>
+      </div>
+      <div id="detail-tags-box" class="flex flex-wrap gap-1.5 min-h-[28px]"></div>
+    </div>
+  </div>
+
+  <script>
+    window.addEventListener('DOMContentLoaded', function() {
+
+      const PRESET_COLORS = ['#8b5cf6', '#f59e0b', '#10b981', '#ec4899', '#3b82f6', '#6366f1', '#14b8a6', '#f43f5e', '#84cc16'];
+      function getAutoColor(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        return PRESET_COLORS[Math.abs(hash) % PRESET_COLORS.length];
+      }
+
+      function getTodayString() {
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+
+      function generateSvgDataUrl(title, bg, textCol) {
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
+          <rect width="600" height="600" fill="${bg}"/>
+          <circle cx="300" cy="240" r="90" fill="none" stroke="${textCol}" stroke-width="12" opacity="0.3"/>
+          <path d="M140 480 Q 300 300 460 480" fill="none" stroke="${textCol}" stroke-width="16" opacity="0.4"/>
+          <text x="50%" y="75%" dominant-baseline="middle" text-anchor="middle" fill="${textCol}" font-family="system-ui, sans-serif" font-size="36" font-weight="bold">${title}</text>
+        </svg>`;
+        return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+      }
+
+      const DEFAULT_TAGS = [
+        { id: 'tag_1', name: '风景', color: '#8b5cf6' },
+        { id: 'tag_2', name: '美食', color: '#f59e0b' },
+        { id: 'tag_3', name: '工作', color: '#10b981' },
+        { id: 'tag_4', name: '宠物', color: '#ec4899' },
+        { id: 'tag_5', name: '旅行', color: '#3b82f6' }
+      ];
+
+      const todayStr = getTodayString();
+      const DEFAULT_IMAGES = [
+        { id: 'img_1', name: '高山雪景.jpg', url: generateSvgDataUrl('高山雪景', '#1e1b4b', '#c084fc'), tags: ['tag_1', 'tag_5'], date: todayStr },
+        { id: 'img_2', name: '精选咖啡午餐.jpg', url: generateSvgDataUrl('精选咖啡午餐', '#451a03', '#fb923c'), tags: ['tag_2'], date: todayStr },
+        { id: 'img_3', name: '团队研讨会.jpg', url: generateSvgDataUrl('团队研讨会', '#064e3b', '#34d399'), tags: ['tag_3'], date: todayStr },
+        { id: 'img_4', name: '海边风光.jpg', url: generateSvgDataUrl('海边风光', '#0c4a6e', '#38bdf8'), tags: ['tag_1', 'tag_5'], date: todayStr }
+      ];
+
+      // --- App State ---
+      let appState = {
+        images: [],
+        tags: [],
+        selectedTagIds: [],
+        selectedDate: null,
+        searchQuery: '',
+        isMultiSelectMode: false,
+        showCalendarView: false,
+        calendarCurrentYear: new Date().getFullYear(),
+        calendarCurrentMonth: new Date().getMonth(),
+        batchSelectedImageIds: new Set(),
+        activeDetailImageId: null,
+        drawerTargetImageIds: []
+      };
+
+      // Zoom & Pan Variables
+      let zoomScale = 1;
+      let panX = 0;
+      let panY = 0;
+
+      function resetZoom() {
+        zoomScale = 1;
+        panX = 0;
+        panY = 0;
+        applyTransform();
+      }
+
+      function applyTransform() {
+        const img = document.getElementById('detail-image');
+        if (img) {
+          img.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomScale})`;
+        }
+      }
+
+      // --- Local Storage ---
+      function loadData() {
+        try {
+          const storedTags = localStorage.getItem('app_photo_tags_v6');
+          const storedImages = localStorage.getItem('app_photo_images_v6');
+
+          if (storedTags) {
+            appState.tags = JSON.parse(storedTags);
+          } else {
+            appState.tags = DEFAULT_TAGS;
+            saveTags();
+          }
+
+          if (storedImages) {
+            appState.images = JSON.parse(storedImages);
+            appState.images.forEach(img => { if (!img.date) img.date = todayStr; });
+          } else {
+            appState.images = DEFAULT_IMAGES;
+            saveImages();
+          }
+        } catch (e) {
+          appState.tags = DEFAULT_TAGS;
+          appState.images = DEFAULT_IMAGES;
+        }
+      }
+
+      function saveTags() {
+        try { localStorage.setItem('app_photo_tags_v6', JSON.stringify(appState.tags)); } catch(e){}
+      }
+
+      function saveImages() {
+        try { localStorage.setItem('app_photo_images_v6', JSON.stringify(appState.images)); } catch(e){}
+      }
+
+      function showToast(message) {
+        const toast = document.getElementById('toast');
+        const toastMsg = document.getElementById('toast-msg');
+        toastMsg.textContent = message;
+        toast.style.display = 'flex';
+        setTimeout(() => { toast.style.display = 'none'; }, 1800);
+      }
+
+      // --- Tag Management ---
+      function deleteExistingTag(tagId) {
+        const tag = appState.tags.find(t => t.id === tagId);
+        if (!tag) return;
+
+        if (confirm(`确定要删除标签“${tag.name}”吗？这会将所有照片解除该标签的关联。`)) {
+          appState.tags = appState.tags.filter(t => t.id !== tagId);
+          appState.selectedTagIds = appState.selectedTagIds.filter(id => id !== tagId);
+          appState.images.forEach(img => {
+            img.tags = img.tags.filter(tId => tId !== tagId);
+          });
+
+          saveTags();
+          saveImages();
+          renderAll();
+          renderManageTagsList();
+          showToast(`已删除标签“${tag.name}”`);
+        }
+      }
+
+      function renameExistingTag(tagId, oldName) {
+        const newName = prompt('修改标签名称:', oldName);
+        if (newName && newName.trim() !== '') {
+          const trimmed = newName.trim();
+          const tag = appState.tags.find(t => t.id === tagId);
+          if (tag) {
+            tag.name = trimmed;
+            saveTags();
+            renderAll();
+            renderManageTagsList();
+            showToast('名称修改成功');
+          }
+        }
+      }
+
+      // --- Render Orchestrator ---
+      function renderAll() {
+        renderFilterTags();
+        if (appState.showCalendarView) renderCalendar();
+        renderImageGrid();
+        updateStats();
+      }
+
+      function updateStats() {
+        document.getElementById('stats-counter').textContent = `共 ${appState.images.length} 张照片 · ${appState.tags.length} 个标签`;
+      }
+
+      function renderFilterTags() {
+        const container = document.getElementById('filter-tags-container');
+        const resetBtn = document.getElementById('btn-reset-filters');
+        container.innerHTML = '';
+
+        if (appState.selectedTagIds.length > 0 || appState.selectedDate) {
+          resetBtn.style.display = 'inline-block';
+        } else {
+          resetBtn.style.display = 'none';
+        }
+
+        const manageTagBtn = document.createElement('button');
+        manageTagBtn.className = 'px-2.5 py-1 rounded-full text-xs font-semibold shrink-0 bg-indigo-600/20 border border-indigo-500/60 text-indigo-300 hover:bg-indigo-600 hover:text-white transition active-scale flex items-center gap-1';
+        manageTagBtn.innerHTML = '<span>⚙️ 管理标签</span>';
+        manageTagBtn.onclick = () => openManageTagsModal();
+        container.appendChild(manageTagBtn);
+
+        appState.tags.forEach(tag => {
+          const isSelected = appState.selectedTagIds.includes(tag.id);
+          const chip = document.createElement('button');
+          chip.className = `px-3 py-1 rounded-full text-xs font-medium shrink-0 flex items-center gap-1.5 transition active-scale ${
+            isSelected 
+              ? 'ring-2 ring-white text-white shadow-md' 
+              : 'bg-slate-800 text-slate-300 border border-slate-700'
+          }`;
+          
+          if (isSelected) chip.style.backgroundColor = tag.color;
+
+          chip.innerHTML = `
+            <span class="w-2 h-2 rounded-full" style="background-color: ${isSelected ? '#ffffff' : tag.color}"></span>
+            <span>${tag.name}</span>
+            ${isSelected ? '<span class="text-[10px] ml-0.5 font-bold">✕</span>' : ''}
+          `;
+
+          chip.onclick = () => {
+            const idx = appState.selectedTagIds.indexOf(tag.id);
+            if (idx > -1) {
+              appState.selectedTagIds.splice(idx, 1);
+            } else {
+              appState.selectedTagIds.push(tag.id);
+            }
+            renderFilterTags();
+            renderImageGrid();
+          };
+          container.appendChild(chip);
+        });
+
+        const summaryBar = document.getElementById('filter-summary');
+        const activeList = document.getElementById('active-tags-list');
+        if (appState.selectedTagIds.length > 0 || appState.selectedDate) {
+          summaryBar.style.display = 'flex';
+          activeList.innerHTML = '';
+
+          if (appState.selectedDate) {
+            const dateBadge = document.createElement('span');
+            dateBadge.className = 'px-2 py-0.5 rounded text-[10px] bg-indigo-600 text-white shrink-0 font-medium';
+            dateBadge.textContent = `📅 ${appState.selectedDate}`;
+            activeList.appendChild(dateBadge);
+          }
+
+          appState.selectedTagIds.forEach(id => {
+            const t = appState.tags.find(item => item.id === id);
+            if (t) {
+              const badge = document.createElement('span');
+              badge.className = 'px-2 py-0.5 rounded text-[10px] text-white shrink-0 font-medium';
+              badge.style.backgroundColor = t.color;
+              badge.textContent = t.name;
+              activeList.appendChild(badge);
+            }
+          });
+        } else {
+          summaryBar.style.display = 'none';
+        }
+      }
+
+      function openManageTagsModal() {
+        renderManageTagsList();
+        document.getElementById('modal-manage-tags').style.display = 'flex';
+      }
+
+      function renderManageTagsList() {
+        const container = document.getElementById('manage-tags-list');
+        container.innerHTML = '';
+
+        if (appState.tags.length === 0) {
+          container.innerHTML = '<div class="text-xs text-slate-500 italic py-4 text-center">暂无标签，请在上方输入框新建</div>';
+          return;
+        }
+
+        appState.tags.forEach(tag => {
+          const item = document.createElement('div');
+          item.className = 'flex items-center justify-between p-2.5 rounded-xl bg-slate-900 border border-slate-700/80';
+
+          item.innerHTML = `
+            <div class="flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full" style="background-color: ${tag.color}"></span>
+              <span class="text-xs font-medium text-slate-200">${tag.name}</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button class="btn-edit-tag p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs active-scale" title="修改名称">✏️</button>
+              <button class="btn-del-tag p-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 text-xs active-scale" title="删除标签">🗑</button>
+            </div>
+          `;
+
+          item.querySelector('.btn-edit-tag').onclick = () => renameExistingTag(tag.id, tag.name);
+          item.querySelector('.btn-del-tag').onclick = () => deleteExistingTag(tag.id);
+
+          container.appendChild(item);
+        });
+      }
+
+      function getFilteredImages() {
+        return appState.images.filter(img => {
+          if (appState.selectedDate && img.date !== appState.selectedDate) return false;
+
+          if (appState.searchQuery.trim() !== '') {
+            const q = appState.searchQuery.toLowerCase();
+            const matchName = img.name.toLowerCase().includes(q);
+            const matchTag = img.tags.some(tId => {
+              const tagObj = appState.tags.find(t => t.id === tId);
+              return tagObj && tagObj.name.toLowerCase().includes(q);
+            });
+            const matchDate = img.date && img.date.includes(q);
+            if (!matchName && !matchTag && !matchDate) return false;
+          }
+
+          if (appState.selectedTagIds.length > 0) {
+            const hasAllSelected = appState.selectedTagIds.every(selId => img.tags.includes(selId));
+            if (!hasAllSelected) return false;
+          }
+
+          return true;
+        });
+      }
+
+      function renderCalendar() {
+        const grid = document.getElementById('calendar-days-grid');
+        const title = document.getElementById('cal-month-title');
+        grid.innerHTML = '';
+
+        const year = appState.calendarCurrentYear;
+        const month = appState.calendarCurrentMonth;
+
+        title.textContent = `${year}年 ${month + 1}月`;
+
+        const firstDayIndex = new Date(year, month, 1).getDay();
+        const totalDays = new Date(year, month + 1, 0).getDate();
+
+        for (let i = 0; i < firstDayIndex; i++) {
+          const emptyCell = document.createElement('div');
+          emptyCell.className = 'h-10 rounded-xl bg-slate-900/20';
+          grid.appendChild(emptyCell);
+        }
+
+        const countsByDate = {};
+        appState.images.forEach(img => {
+          if (img.date) countsByDate[img.date] = (countsByDate[img.date] || 0) + 1;
+        });
+
+        for (let day = 1; day <= totalDays; day++) {
+          const monthStr = String(month + 1).padStart(2, '0');
+          const dayStr = String(day).padStart(2, '0');
+          const formattedDate = `${year}-${monthStr}-${dayStr}`;
+
+          const photoCount = countsByDate[formattedDate] || 0;
+          const isSelected = appState.selectedDate === formattedDate;
+
+          const dayCell = document.createElement('button');
+          dayCell.className = `h-10 rounded-xl flex flex-col items-center justify-center relative transition active-scale ${
+            isSelected 
+              ? 'bg-indigo-600 text-white font-bold ring-2 ring-white shadow-lg' 
+              : photoCount > 0 
+              ? 'bg-slate-700/80 text-slate-100 hover:bg-slate-600' 
+              : 'bg-slate-800/40 text-slate-500 hover:bg-slate-800'
+          }`;
+
+          dayCell.innerHTML = `
+            <span class="text-xs">${day}</span>
+            ${photoCount > 0 ? `<span class="text-[9px] ${isSelected ? 'text-indigo-200' : 'text-indigo-400'} leading-none mt-0.5">${photoCount}张</span>` : ''}
+          `;
+
+          dayCell.onclick = () => {
+            appState.selectedDate = appState.selectedDate === formattedDate ? null : formattedDate;
+            updateCalendarHint();
+            renderFilterTags();
+            renderCalendar();
+            renderImageGrid();
+          };
+
+          grid.appendChild(dayCell);
+        }
+
+        updateCalendarHint();
+      }
+
+      function updateCalendarHint() {
+        const hintBox = document.getElementById('cal-filter-hint');
+        const dateText = document.getElementById('cal-selected-date-text');
+
+        if (appState.selectedDate) {
+          hintBox.style.display = 'flex';
+          dateText.textContent = `当前筛选指定日期: ${appState.selectedDate}`;
+        } else {
+          hintBox.style.display = 'none';
+        }
+      }
+
+      function renderImageGrid() {
+        const grid = document.getElementById('image-grid');
+        const emptyState = document.getElementById('empty-state');
+        const filtered = getFilteredImages();
+
+        document.getElementById('filtered-count').textContent = `${filtered.length} 张`;
+
+        if (filtered.length === 0) {
+          grid.innerHTML = '';
+          emptyState.style.display = 'flex';
+          return;
+        }
+
+        emptyState.style.display = 'none';
+
+        grid.innerHTML = filtered.map(img => {
+          const isSelected = appState.batchSelectedImageIds.has(img.id);
+          
+          const dotsHtml = img.tags.slice(0, 3).map(tId => {
+            const tag = appState.tags.find(t => t.id === tId);
+            if (!tag) return '';
+            return `<span class="inline-block w-2.5 h-2.5 rounded-full ring-1 ring-black/40" style="background-color: ${tag.color}"></span>`;
+          }).join('');
+
+          return `
+            <div data-id="${img.id}" class="photo-card relative aspect-square rounded-2xl overflow-hidden bg-slate-800 border border-slate-700/80 shadow-md group cursor-pointer active-scale">
+              <img src="${img.url}" alt="${img.name}" class="w-full h-full object-cover">
+              
+              <div class="absolute top-2 left-2 flex items-center gap-1 bg-black/50 backdrop-blur-md px-1.5 py-1 rounded-full pointer-events-none">
+                ${dotsHtml || '<span class="text-[9px] text-slate-400">无标签</span>'}
+              </div>
+
+              ${!appState.isMultiSelectMode ? `
+                <button data-quick-tag="${img.id}" class="btn-quick-tag absolute top-2 right-2 w-7 h-7 rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-200 hover:text-white flex items-center justify-center text-xs shadow-lg active-scale">
+                  ✎
+                </button>
+              ` : ''}
+
+              ${appState.isMultiSelectMode ? `
+                <div class="absolute inset-0 bg-black/30 flex items-start justify-end p-2 pointer-events-none">
+                  <div class="w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                    isSelected ? 'bg-indigo-600 border-white text-white font-bold text-xs' : 'border-white/80 bg-black/40'
+                  }">
+                    ${isSelected ? '✓' : ''}
+                  </div>
+                </div>
+              ` : ''}
+
+              <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-2 pt-6 pointer-events-none flex flex-col">
+                <p class="text-[11px] font-medium text-slate-200 truncate">${img.name}</p>
+                <p class="text-[9px] text-indigo-300/90 font-mono">${img.date || ''}</p>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        grid.querySelectorAll('.photo-card').forEach(card => {
+          const id = card.getAttribute('data-id');
+          card.onclick = (e) => {
+            const quickBtn = e.target.closest('.btn-quick-tag');
+            if (quickBtn) {
+              e.stopPropagation();
+              openAssignDrawer([id]);
+              return;
+            }
+
+            if (appState.isMultiSelectMode) {
+              if (appState.batchSelectedImageIds.has(id)) {
+                appState.batchSelectedImageIds.delete(id);
+              } else {
+                appState.batchSelectedImageIds.add(id);
+              }
+              updateBatchBar();
+              renderImageGrid();
+            } else {
+              openDetailViewer(id);
+            }
+          };
+        });
+      }
+
+      function updateBatchBar() {
+        document.getElementById('batch-count-badge').textContent = appState.batchSelectedImageIds.size;
+      }
+
+      function toggleMultiSelectMode(force) {
+        appState.isMultiSelectMode = force !== undefined ? force : !appState.isMultiSelectMode;
+        const btn = document.getElementById('btn-toggle-select');
+        const batchBar = document.getElementById('batch-bar');
+
+        if (appState.isMultiSelectMode) {
+          btn.textContent = '取消';
+          btn.className = 'px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-indigo-600 text-white transition active-scale';
+          batchBar.style.display = 'flex';
+        } else {
+          btn.textContent = '多选';
+          btn.className = 'px-2.5 py-1.5 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition active-scale';
+          batchBar.style.display = 'none';
+          appState.batchSelectedImageIds.clear();
+        }
+        renderImageGrid();
+      }
+
+      // --- Bottom Edit Drawer ---
+      function openAssignDrawer(imageIds) {
+        appState.drawerTargetImageIds = imageIds;
+        const desc = document.getElementById('drawer-desc');
+        const dateInput = document.getElementById('drawer-date-input');
+        
+        if (imageIds.length === 1) {
+          const img = appState.images.find(i => i.id === imageIds[0]);
+          desc.textContent = img ? `编辑《${img.name}》信息` : '调整图片信息';
+          dateInput.value = img.date || todayStr;
+        } else {
+          desc.textContent = `对选中的 ${imageIds.length} 张图片批量打标签 / 设定日期`;
+          dateInput.value = todayStr;
+        }
+
+        renderDrawerTags();
+        document.getElementById('drawer-tag-assign').style.display = 'flex';
+      }
+
+      function renderDrawerTags() {
+        const attachedBox = document.getElementById('attached-tags-box');
+        const availableBox = document.getElementById('available-tags-box');
+        attachedBox.innerHTML = '';
+        availableBox.innerHTML = '';
+
+        const targetImages = appState.images.filter(img => appState.drawerTargetImageIds.includes(img.id));
+        if (targetImages.length === 0) return;
+
+        appState.tags.forEach(tag => {
+          const attachedCount = targetImages.filter(img => img.tags.includes(tag.id)).length;
+          const isFullyAttached = attachedCount === targetImages.length;
+          const isPartiallyAttached = attachedCount > 0 && !isFullyAttached;
+
+          const chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = `px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition active-scale ${
+            isFullyAttached 
+              ? 'bg-indigo-600 text-white border-indigo-500 shadow' 
+              : isPartiallyAttached 
+              ? 'bg-indigo-900/60 text-indigo-200 border-indigo-500/60' 
+              : 'bg-slate-900 text-slate-300 border-slate-700 hover:text-white'
+          }`;
+
+          chip.innerHTML = `
+            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${tag.color}"></span>
+            <span>${tag.name}</span>
+            <span class="text-[10px] ml-1 font-bold">${isFullyAttached ? '✕' : '+'}</span>
+          `;
+
+          chip.onclick = () => {
+            targetImages.forEach(img => {
+              if (isFullyAttached) {
+                img.tags = img.tags.filter(tId => tId !== tag.id);
+              } else {
+                if (!img.tags.includes(tag.id)) img.tags.push(tag.id);
+              }
+            });
+
+            saveImages();
+            renderDrawerTags();
+            renderAll();
+            if (appState.activeDetailImageId) renderDetailTags();
+            showToast(isFullyAttached ? '已解绑标签' : '已绑定标签');
+          };
+
+          if (isFullyAttached || isPartiallyAttached) {
+            attachedBox.appendChild(chip);
+          } else {
+            availableBox.appendChild(chip);
+          }
+        });
+
+        if (attachedBox.children.length === 0) {
+          attachedBox.innerHTML = '<span class="text-xs text-slate-500 italic py-1">暂无绑定的标签</span>';
+        }
+        if (availableBox.children.length === 0) {
+          availableBox.innerHTML = '<span class="text-xs text-slate-500 italic py-1">所有标签均已选择</span>';
+        }
+      }
+
+      // --- Fullscreen Photo Viewer & Touch Pinch-Zoom/Pan Gestures ---
+      function openDetailViewer(imageId) {
+        const filteredList = getFilteredImages();
+        const index = filteredList.findIndex(i => i.id === imageId);
+        if (index === -1) return;
+
+        appState.activeDetailImageId = imageId;
+        resetZoom();
+        updateDetailViewerContent(index);
+
+        document.getElementById('modal-photo-viewer').style.display = 'flex';
+      }
+
+      function updateDetailViewerContent(index) {
+        const filteredList = getFilteredImages();
+        if (filteredList.length === 0 || index < 0 || index >= filteredList.length) return;
+
+        const img = filteredList[index];
+        appState.activeDetailImageId = img.id;
+
+        document.getElementById('detail-image').src = img.url;
+        document.getElementById('detail-title').textContent = img.name;
+        document.getElementById('detail-date-badge').textContent = `日期: ${img.date || '未设置'}`;
+        document.getElementById('detail-index-counter').textContent = `${index + 1} / ${filteredList.length}`;
+
+        renderDetailTags();
+      }
+
+      function navigateDetailPhoto(direction) {
+        const filteredList = getFilteredImages();
+        if (filteredList.length === 0) return;
+
+        const currentIndex = filteredList.findIndex(i => i.id === appState.activeDetailImageId);
+        if (currentIndex === -1) return;
+
+        let nextIndex = currentIndex + direction;
+        if (nextIndex < 0) nextIndex = filteredList.length - 1;
+        if (nextIndex >= filteredList.length) nextIndex = 0;
+
+        resetZoom();
+        updateDetailViewerContent(nextIndex);
+      }
+
+      function renderDetailTags() {
+        const box = document.getElementById('detail-tags-box');
+        const img = appState.images.find(i => i.id === appState.activeDetailImageId);
+        box.innerHTML = '';
+
+        if (!img || img.tags.length === 0) {
+          box.innerHTML = '<span class="text-xs text-slate-500 italic">暂无绑定的标签</span>';
+          return;
+        }
+
+        img.tags.forEach(tId => {
+          const tag = appState.tags.find(t => t.id === tId);
+          if (tag) {
+            const badge = document.createElement('span');
+            badge.className = 'px-2.5 py-1 rounded-lg text-xs font-medium text-white flex items-center gap-1.5 shadow-sm';
+            badge.style.backgroundColor = tag.color;
+            badge.innerHTML = `
+              <span>${tag.name}</span>
+              <button class="hover:text-slate-200 text-[10px] font-bold p-0.5">✕</button>
+            `;
+
+            badge.querySelector('button').onclick = (e) => {
+              e.stopPropagation();
+              img.tags = img.tags.filter(id => id !== tag.id);
+              saveImages();
+              renderDetailTags();
+              renderAll();
+              showToast('解绑成功');
+            };
+
+            box.appendChild(badge);
+          }
+        });
+      }
+
+      // Touch Gestures: Pinch Zoom, Pan, Swipe Next/Prev, Double Tap
+      let touchStartX = 0;
+      let touchStartY = 0;
+      let initialPinchDist = 0;
+      let lastTapTime = 0;
+      let isDragging = false;
+      let dragStartX = 0;
+      let dragStartY = 0;
+
+      function getPinchDistance(e) {
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        return Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      }
+
+      function setupSwipeAndZoomGestures() {
+        const stage = document.getElementById('swipe-stage');
+        const img = document.getElementById('detail-image');
+
+        // Touch Start
+        stage.addEventListener('touchstart', (e) => {
+          if (e.touches.length === 2) {
+            // Pinch start
+            initialPinchDist = getPinchDistance(e);
+          } else if (e.touches.length === 1) {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+            dragStartX = touchStartX - panX;
+            dragStartY = touchStartY - panY;
+
+            // Double Tap Check
+            const now = Date.now();
+            if (now - lastTapTime < 300) {
+              // Double tap toggle zoom
+              if (zoomScale > 1) {
+                resetZoom();
+              } else {
+                zoomScale = 2.5;
+                applyTransform();
+              }
+            }
+            lastTapTime = now;
+
+            if (zoomScale > 1) {
+              isDragging = true;
+            }
+          }
+        }, { passive: true });
+
+        // Touch Move
+        stage.addEventListener('touchmove', (e) => {
+          if (e.touches.length === 2 && initialPinchDist > 0) {
+            // Pinching Zoom
+            const currentDist = getPinchDistance(e);
+            const scaleFactor = currentDist / initialPinchDist;
+            zoomScale = Math.min(Math.max(1, zoomScale * scaleFactor), 4);
+            initialPinchDist = currentDist;
+            applyTransform();
+          } else if (e.touches.length === 1 && isDragging && zoomScale > 1) {
+            // Pan when zoomed
+            panX = e.touches[0].clientX - dragStartX;
+            panY = e.touches[0].clientY - dragStartY;
+            applyTransform();
+          }
+        }, { passive: true });
+
+        // Touch End
+        stage.addEventListener('touchend', (e) => {
+          if (e.touches.length < 2) initialPinchDist = 0;
+          if (e.touches.length === 0) isDragging = false;
+
+          // Swipe Photo when not zoomed
+          if (zoomScale === 1 && e.changedTouches.length === 1) {
+            const touchEndX = e.changedTouches[0].clientX;
+            const touchEndY = e.changedTouches[0].clientY;
+            const diffX = touchEndX - touchStartX;
+            const diffY = touchEndY - touchStartY;
+
+            if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 40) {
+              if (diffX < 0) {
+                navigateDetailPhoto(1);
+              } else {
+                navigateDetailPhoto(-1);
+              }
+            }
+          }
+        }, { passive: true });
+
+        // Double Click for PC / Mouse
+        img.addEventListener('dblclick', () => {
+          if (zoomScale > 1) {
+            resetZoom();
+          } else {
+            zoomScale = 2.5;
+            applyTransform();
+          }
+        });
+      }
+
+      // --- Event Listeners ---
+      function bindEvents() {
+        document.getElementById('btn-toggle-view').onclick = () => {
+          appState.showCalendarView = !appState.showCalendarView;
+          const calContainer = document.getElementById('calendar-view');
+          const toggleText = document.getElementById('view-toggle-text');
+
+          if (appState.showCalendarView) {
+            calContainer.style.display = 'block';
+            toggleText.textContent = '网格视图';
+            renderCalendar();
+          } else {
+            calContainer.style.display = 'none';
+            toggleText.textContent = '月视图';
+          }
+        };
+
+        document.getElementById('cal-prev-month').onclick = () => {
+          if (appState.calendarCurrentMonth === 0) {
+            appState.calendarCurrentMonth = 11;
+            appState.calendarCurrentYear--;
+          } else {
+            appState.calendarCurrentMonth--;
+          }
+          renderCalendar();
+        };
+
+        document.getElementById('cal-next-month').onclick = () => {
+          if (appState.calendarCurrentMonth === 11) {
+            appState.calendarCurrentMonth = 0;
+            appState.calendarCurrentYear++;
+          } else {
+            appState.calendarCurrentMonth++;
+          }
+          renderCalendar();
+        };
+
+        document.getElementById('btn-clear-date-filter').onclick = () => {
+          appState.selectedDate = null;
+          renderFilterTags();
+          renderCalendar();
+          renderImageGrid();
+        };
+
+        document.getElementById('file-input').onchange = (e) => {
+          const files = Array.from(e.target.files || []);
+          if (files.length === 0) return;
+
+          let loadedCount = 0;
+          files.forEach(file => {
+            if (!file.type.startsWith('image/')) return;
+
+            let imgDate = todayStr;
+            if (file.lastModified) {
+              const d = new Date(file.lastModified);
+              imgDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+              const newImg = {
+                id: 'img_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                name: file.name,
+                url: evt.target.result,
+                tags: [...appState.selectedTagIds],
+                date: imgDate
+              };
+              appState.images.unshift(newImg);
+              loadedCount++;
+              if (loadedCount === files.length) {
+                saveImages();
+                renderAll();
+                showToast(`成功导入 ${loadedCount} 张图片`);
+              }
+            };
+            reader.readAsDataURL(file);
+          });
+          e.target.value = '';
+        };
+
+        document.getElementById('btn-toggle-select').onclick = () => toggleMultiSelectMode();
+
+        const searchInput = document.getElementById('search-input');
+        const clearBtn = document.getElementById('btn-clear-search');
+
+        searchInput.oninput = (e) => {
+          appState.searchQuery = e.target.value;
+          clearBtn.style.display = appState.searchQuery ? 'block' : 'none';
+          renderImageGrid();
+        };
+
+        clearBtn.onclick = () => {
+          searchInput.value = '';
+          appState.searchQuery = '';
+          clearBtn.style.display = 'none';
+          renderImageGrid();
+        };
+
+        document.getElementById('btn-reset-filters').onclick = () => {
+          appState.selectedTagIds = [];
+          appState.selectedDate = null;
+          renderFilterTags();
+          if (appState.showCalendarView) renderCalendar();
+          renderImageGrid();
+        };
+
+        document.getElementById('btn-close-manage-tags').onclick = () => {
+          document.getElementById('modal-manage-tags').style.display = 'none';
+        };
+        document.getElementById('btn-done-manage-tags').onclick = () => {
+          document.getElementById('modal-manage-tags').style.display = 'none';
+        };
+        document.getElementById('modal-manage-overlay').onclick = () => {
+          document.getElementById('modal-manage-tags').style.display = 'none';
+        };
+
+        document.getElementById('form-manage-add-tag').onsubmit = (e) => {
+          e.preventDefault();
+          const input = document.getElementById('manage-new-tag-input');
+          const val = input.value.trim();
+          if (val) {
+            const newTag = { id: 'tag_' + Date.now(), name: val, color: getAutoColor(val) };
+            appState.tags.push(newTag);
+            saveTags();
+            input.value = '';
+            renderAll();
+            renderManageTagsList();
+            showToast('标签添加成功');
+          }
+        };
+
+        document.getElementById('btn-save-drawer-date').onclick = () => {
+          const newDate = document.getElementById('drawer-date-input').value;
+          if (!newDate) return;
+
+          appState.images.forEach(img => {
+            if (appState.drawerTargetImageIds.includes(img.id)) {
+              img.date = newDate;
+            }
+          });
+
+          saveImages();
+          renderAll();
+          if (appState.activeDetailImageId) {
+            const currentImg = appState.images.find(i => i.id === appState.activeDetailImageId);
+            if (currentImg) {
+              document.getElementById('detail-date-badge').textContent = `日期: ${currentImg.date}`;
+            }
+          }
+          document.getElementById('drawer-tag-assign').style.display = 'none';
+          showToast('修改已保存');
+        };
+
+        document.getElementById('form-quick-tag').onsubmit = (e) => {
+          e.preventDefault();
+          const nameInput = document.getElementById('quick-tag-input');
+          const val = nameInput.value.trim();
+
+          if (val) {
+            const newTag = { id: 'tag_' + Date.now(), name: val, color: getAutoColor(val) };
+            appState.tags.push(newTag);
+            saveTags();
+
+            appState.images.forEach(img => {
+              if (appState.drawerTargetImageIds.includes(img.id)) {
+                if (!img.tags.includes(newTag.id)) img.tags.push(newTag.id);
+              }
+            });
+            saveImages();
+
+            nameInput.value = '';
+            renderAll();
+            renderDrawerTags();
+            showToast('标签已创建并绑定');
+          }
+        };
+
+        document.getElementById('btn-close-drawer').onclick = () => {
+          document.getElementById('drawer-tag-assign').style.display = 'none';
+        };
+        document.getElementById('drawer-tag-overlay').onclick = () => {
+          document.getElementById('drawer-tag-assign').style.display = 'none';
+        };
+
+        document.getElementById('btn-batch-tag').onclick = () => {
+          if (appState.batchSelectedImageIds.size === 0) {
+            showToast('请先选择图片');
+            return;
+          }
+          openAssignDrawer(Array.from(appState.batchSelectedImageIds));
+        };
+
+        document.getElementById('btn-batch-delete').onclick = () => {
+          if (appState.batchSelectedImageIds.size === 0) return;
+          const ids = Array.from(appState.batchSelectedImageIds);
+          appState.images = appState.images.filter(img => !ids.includes(img.id));
+          saveImages();
+          toggleMultiSelectMode(false);
+          renderAll();
+          showToast(`已删除 ${ids.length} 张照片`);
+        };
+
+        document.getElementById('btn-prev-photo').onclick = () => navigateDetailPhoto(-1);
+        document.getElementById('btn-next-photo').onclick = () => navigateDetailPhoto(1);
+
+        document.getElementById('btn-close-detail').onclick = () => {
+          document.getElementById('modal-photo-viewer').style.display = 'none';
+        };
+
+        // 大图模式下的编辑按钮点击 -> 弹出编辑抽屉（由于抽屉 z-index 为 60，高于大图的 50，可直接盖在大图上方弹出）
+        document.getElementById('btn-detail-edit').onclick = () => {
+          if (appState.activeDetailImageId) {
+            openAssignDrawer([appState.activeDetailImageId]);
+          }
+        };
+
+        document.getElementById('btn-detail-delete').onclick = () => {
+          if (appState.activeDetailImageId) {
+            const id = appState.activeDetailImageId;
+            appState.images = appState.images.filter(img => img.id !== id);
+            saveImages();
+            document.getElementById('modal-photo-viewer').style.display = 'none';
+            renderAll();
+            showToast('照片已删除');
+          }
+        };
+
+        setupSwipeAndZoomGestures();
+      }
+
+      // --- Init ---
+      loadData();
+      bindEvents();
+      renderAll();
+    });
+  </script>
+</body>
+</html>
